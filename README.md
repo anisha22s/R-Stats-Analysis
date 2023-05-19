@@ -11,7 +11,7 @@ Fit a regression model and check for non-constant variance.
 Explore transformations (such as square root, log, and inverse) on the variables to achieve a linear relationship with constant variance. Utilize ggplot to assist in selecting the appropriate transformation method.
 
 ## PART 2: Box Cox Transformation
-PART
+
 The ozone dataset from the faraway library is used in this PART. The goal is to fit a model for the ozone (O3) concentration using temperature, humidity, and ibh (inversion base height) as predictors. The Box-Cox plot is utilized to determine the best transformation for the response variable.
 
 ## PART 3: Feature Selection Methods
