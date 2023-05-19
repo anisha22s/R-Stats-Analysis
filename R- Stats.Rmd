@@ -1,0 +1,202 @@
+---
+title: "Stats"
+author: "Anisha Samant"
+date: "2023-02-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(faraway)
+library(ggplot2)
+```
+
+```{r}
+##REGRESSION MODEL FOR NON CONSTANT VARIABE
+df1 <- faraway::pipeline
+lab <- df1$Lab
+field <- df1$Field
+reg1 <- lm(lab~field)
+summary(reg1)
+resid1 <- residuals(reg1)
+plot(field,resid1,main = "Residuals vs Field",
+     xlab = "Field", ylab = "Residuals", pch = 20)
+plot(fitted(reg1),resid1,main = "Residuals vs Fitted Value",
+     xlab = "Fitted", ylab = "Residuals", pch = 20)
+print("We can see from the residual plot that variance is not constant. Starts off with low variance and increases with the independent variable")
+
+
+# remedy non constant variance with sqrt/log/inverse on either lab/field
+sq.lab <- sqrt(lab)
+sq.field <- sqrt(field)
+loglab <- log(lab)
+logfield <- log(field)
+inv.lab <- 1/lab
+inv.field <- 1/field
+reg_func <- function(x,y){
+  mod <- lm(y~x)
+  resid <- residuals(mod)
+  plot_data <- data.frame(x = x, y = resid)
+  ggplot(plot_data, aes(x = x, y = y)) +
+    geom_point() +
+    xlab("x") +
+    ylab("Residuals") +
+    ggtitle("Residuals vs x")
+}
+
+reg_func(sq.field,sq.lab)
+reg_func(field,sq.lab)
+reg_func(logfield,loglab)
+reg_func(field,loglab)
+reg_func(field,inv.lab)
+reg_func(sq.field,lab)
+reg_func(logfield,lab)
+
+print("after comparing the residuals plots from ggplot, we find log-log performs best in addressing heteroscedasticity. Squared-Squared transformation also works reasonably well.")
+```
+
+```{r}
+## Using the ozone dataset in library faraway to fit a model for O3 as the response
+#and temp, hunidity and ibh as predictors. then used the Box-Cox plot to find the
+#best best transformation on the respons
+df2 <- faraway::ozone
+o3 <- df2$O3
+temp <- df2$temp
+hum <- df2$humidity
+ibh <- df2$ibh
+
+model2 <- lm(o3~temp+hum+ibh)
+summary(model2)
+library(MASS)
+boxcox(lm(o3~temp+hum+ibh),data=df2)
+print("since the optimal lamda value is small, around 0.25 and the 95% CI does not include 0, we can apply a power transformation of 1/4 to y.")
+
+#refit model
+y_trans <- (o3^0.25 - 1) / 0.25
+model2b <- lm(y_trans~temp+hum+ibh)
+summary(model2b)
+
+fit.2b <- fitted(model2b)
+resid.2b <- residuals(model2b)
+#plot to check variance
+ggplot(data = df2,aes(x = fit.2b,y=resid.2b)) + geom_point() +
+  geom_abline(intercept = 0, slope = 0) + labs(x='Fitted value', y = 'Residuals')
+print("the non constant variance problem has largely been addressed following the box cox transformation. The final model is (O3)^1/4 = B0 + B1(temp) + B2(humidity) + B3(ibh)")
+```
+
+```{r}
+##Feature selection methods
+library(ISLR2)
+
+# Load the Boston data into a data frame
+data(Boston)
+df3 <- as.data.frame(Boston)
+
+# Ploting the scatterplot matrix
+library(car)
+pairs(df3)
+print("We can identify from the correlation matrix: a negative inverse relation between crime and dist/medv variable, and a positive relation between crime and lstat,nox or age.")
+
+# Plot a few variable of interest identified
+library(ggplot2)
+ggplot(df3, aes(x=crim, y=medv)) + 
+  geom_point() + 
+  labs(x = "Per capita crime rate by town", y = "Median value of owner-occupied homes in $1000's")
+ggplot(df3, aes(x=crim, y=dis)) + geom_point()
+ggplot(df3,aes(x=crim,y=lstat)) + geom_point()
+ggplot(df3,aes(x=crim,y=age)) + geom_point()
+ggplot(df3,aes(x=crim,y=nox)) + geom_point()
+
+
+#Fiting a multiple regression model between y and the other variables as predictors.
+y <- df3$crim
+model3 <- lm(y~.,data=df3)
+summary(model3)
+print("we find zn, dis,rad and medv to be significant variables in this simple linear regression model. The model has an R-squared of 0.4359, indicating that 43.59 percent of the variation in the dependent variable crim can be explained by the independent variables, which is not very high, but the overall model is significant based on F-stat and p-value. ")
+print("p-value is the probability of us finding a value that is more extreme than the test statistic under null hypothesis (here it'd be that the estimate is zero). The lower the p-value is, the rarer the test statistic of the estimate is under the null hypothesis and therefore we can be more confident in saying that the estimate is not non-zero by pure chance or randomness.")
+
+
+print("The coefficients of our predictors represent the change in the dependent variable (crime rate) associated with a one unit change in the independent variable, ceterus paribus. Note that the magnitude of the coefficients here does not necessarily indicate the relative importance of said predictor. For example, a predictor with a small coefficient could still be very important if it has a high correlation with the dependent variable. We should scale the data for a full picture of which variable has the most impact in our interpretation.
+In particular we can see dis, rad, and nox have the largest coefficients in the summary, but to determine the importance of the predictors, we also need to take into account correlation and p-value of each predictor, and the goodness of fit of the overall model. Feature selection methods can also be used to determine the most important predictors in a model.")
+
+#Performing feature selection using- 
+#Forward Stepwise with p-value threshold of 0.1
+#Backward Stepwise with p-value threshold of 0.1
+#Forward Stepwise with AIC
+#Forward Stepwise with BIC
+#Forward Stepwise with Mallows 
+
+n <- nrow(df3)
+split = sample(1:n,size=0.8*n,replace=FALSE)
+train = df3[split,]
+test = df3[-split,]
+
+library(olsrr)
+ols_step_forward_p(model = lm(crim ~ ., data = train),penter=0.1,details=TRUE)
+modelc1 <- lm(crim~rad+medv+ptratio,data = train)
+
+ols_step_backward_p(model=lm(crim~.,data = train),prem = 0.1,details = TRUE,print_plot=TRUE)
+modelc2 <- lm(crim~zn+nox+dis+rad+ptratio+medv,data = train)
+
+modelc3 <- step(lm(crim ~ 1, data = train), scope = list(lower = lm(crim ~ 1, data = train), upper = lm(crim~ ., data = train)), direction = "forward",k=2,criterion="aic")
+
+modelc4 <- step(lm(crim ~ 1, data = train), scope = list(lower = lm(crim ~ 1, data = train), upper = lm(crim~ ., data = train)), direction = "forward", k=log(nrow(train)),criterion="bic")
+
+#note setting criterion = aic or bic in the step function produced identitical results. upon research I found we needed to set k differently to distinguish the criterion used. In this case we use k=2 for aic. 
+
+library(leaps)
+#Mallow's CP with leaps library
+fit_full <- lm(crim ~ ., data = train)
+fit_step <- regsubsets(crim ~ ., data = train, method = "forward", nbest = 1)
+summary(fit_step)
+cp_obj <- summary(fit_step)$cp
+
+index <- which.min(cp_obj)
+best_vars <- names(coef(fit_step, id = index))
+
+modelc5 <- lm(crim ~ zn + indus + rm + dis + rad + ptratio + 
+    lstat + medv,data=train)
+
+summary(modelc5)
+summary(modelc1)
+summary(modelc2)
+summary(modelc3)
+summary(modelc4)
+
+p1 <- predict(modelc1, newdata = test)
+p2 <- predict(modelc2, newdata = test)
+p3 <- predict(modelc3, newdata = test)
+p4 <- predict(modelc4, newdata = test)
+p5 <- predict(modelc5, newdata = test)
+
+Rsq <- function(y,pred) {
+  ymean <- mean(y)
+  TSS <- sum((y-ymean)^2)
+  RSS <- sum((y-pred)^2)
+  R2 <- 1-(RSS/TSS)
+  return(R2)}
+
+Rsq1 <- Rsq(test$crim,p1)
+Rsq2 <- Rsq(test$crim,p2)
+Rsq3 <- Rsq(test$crim,p3)
+Rsq4 <- Rsq(test$crim,p4)
+Rsq5 <- Rsq(test$crim,p5)
+
+mse1 <- mean((test$crim - p1)^2)
+mse2 <- mean((test$crim - p2)^2)
+mse3 <- mean((test$crim - p3)^2)
+mse4 <- mean((test$crim - p4)^2)
+
+names_model <- c("Forward_p=0.1","Bakcward_p=0.1","Forward_AIC","Forward_BIC","Forward_Mallows Cp")
+
+OOS_R2 <- c(Rsq1,Rsq2,Rsq3,Rsq4,Rsq5)
+
+dataframe_selection <- data.frame(names_model,OOS_R2)
+
+dataframe_selection
+
+
+
+```
+
+
